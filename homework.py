@@ -39,7 +39,6 @@ HOMEWORK_STATUSES = {
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
-BOT = telegram.Bot(token=TELEGRAM_TOKEN)
 
 
 def send_message(bot, message):
@@ -62,13 +61,11 @@ def get_api_answer(current_timestamp):
     except Exception:
         message = 'Сбой при запросе к ENDPOINT'
         logging.error(message)
-        send_message(BOT, message)
     if homework_statuses.status_code == HTTPStatus.OK:
         return homework_statuses.json()
     elif homework_statuses.status_code != HTTPStatus.OK:
         message = 'ENDPOINT недоступен'
         logging.error(message)
-        send_message(BOT, message)
         raise AssertionError(message)
 
 
@@ -79,19 +76,16 @@ def check_response(response):
             if type(response['homeworks']) is not list:
                 message = 'Ответ от API с ключом "homeworks" не в виде списка'
                 logging.error(message)
-                send_message(BOT, message)
                 raise TypeError(message)
             return response['homeworks']
         except Exception:
             message = 'В ответе API отсутствет ожидаемый ключ "homeworks"'
             logging.error(message)
-            send_message(BOT, message)
             raise AssertionError(message)
 
     else:
         message = 'Ответ API имеет некорректный формат'
         logging.error(message)
-        send_message(BOT, message)
         raise TypeError(message)
 
 
@@ -105,7 +99,6 @@ def parse_status(homework):
     except KeyError:
         message = 'Недокументированный статус домашней работы в ответе API'
         logger.error(message)
-        send_message(BOT, message)
         raise KeyError(message)
 
 
@@ -114,7 +107,6 @@ def check_tokens():
     if None in (PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID):
         message = 'Отсутствуют обязательные переменные окружения'
         logger.critical(message)
-        send_message(BOT, message)
         return False
     else:
         return True
@@ -123,6 +115,7 @@ def check_tokens():
 def main():
     """Основная логика работы бота."""
     current_timestamp = int(time.time())
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
     status = ''
     if check_tokens():
         while True:
@@ -132,7 +125,7 @@ def main():
                 if homework:
                     if homework[0] != status:
                         status = parse_status(homework[0])
-                        send_message(BOT, status)
+                        send_message(bot, status)
                 else:
                     logger.debug(
                         'Новый статус домашней работы отсутствует'
@@ -143,7 +136,7 @@ def main():
 
             except Exception as error:
                 message = f'Сбой в работе программы: {error}'
-                send_message(BOT, message)
+                send_message(bot, message)
                 time.sleep(RETRY_TIME)
 
     else:
