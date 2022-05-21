@@ -6,6 +6,7 @@ import time
 from dotenv import load_dotenv
 from http import HTTPStatus
 from logging.handlers import RotatingFileHandler
+from settings import ENDPOINT, HOMEWORK_STATUSES, RETRY_TIME
 
 
 load_dotenv()
@@ -29,16 +30,11 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-RETRY_TIME = 600
-ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
-HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
-
-
-HOMEWORK_STATUSES = {
-    'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
-    'reviewing': 'Работа взята на проверку ревьюером.',
-    'rejected': 'Работа проверена: у ревьюера есть замечания.'
-}
+HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}  # Данную константу
+# оставил здесь, т.к. если ее перенести в settings - возникает ошибка из-за
+# цикличности импорта: ImportError: cannot import name 'ENDPOINT' from
+# partially initialized module 'settings' (most likely due to a circular
+# import)
 
 
 def send_message(bot, message):
@@ -46,7 +42,7 @@ def send_message(bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.info(message)
-    except Exception as error:
+    except telegram.error.TelegramError as error:
         logger.error(f'Сбой при отправке сообщения в Telegram: {error}')
 
 
@@ -72,13 +68,13 @@ def get_api_answer(current_timestamp):
 def check_response(response):
     """Проверка ответа API на корректность."""
     if type(response) is dict:
-        try:
+        if 'homeworks' in response:
             if type(response['homeworks']) is not list:
                 message = 'Ответ от API с ключом "homeworks" не в виде списка'
                 logging.error(message)
                 raise TypeError(message)
             return response['homeworks']
-        except Exception:
+        else:
             message = 'В ответе API отсутствет ожидаемый ключ "homeworks"'
             logging.error(message)
             raise AssertionError(message)
@@ -91,12 +87,12 @@ def check_response(response):
 
 def parse_status(homework):
     """Извлечение статуса и подготовка строки для отправки в чат."""
-    try:
-        homework_name = homework['homework_name']
-        homework_status = homework['status']
+    homework_name = homework['homework_name']
+    homework_status = homework['status']
+    if homework_status in HOMEWORK_STATUSES:
         verdict = HOMEWORK_STATUSES[homework_status]
         return f'Изменился статус проверки работы "{homework_name}". {verdict}'
-    except KeyError:
+    else:
         message = 'Недокументированный статус домашней работы в ответе API'
         logger.error(message)
         raise KeyError(message)
@@ -104,20 +100,15 @@ def parse_status(homework):
 
 def check_tokens():
     """Проверка доступности переменных окружения."""
-    if None in (PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID):
-        message = 'Отсутствуют обязательные переменные окружения'
-        logger.critical(message)
-        return False
-    else:
-        return True
+    return all((PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID))
 
 
 def main():
     """Основная логика работы бота."""
-    current_timestamp = int(time.time())
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    status = ''
     if check_tokens():
+        current_timestamp = int(time.time())
+        bot = telegram.Bot(token=TELEGRAM_TOKEN)
+        status = ''
         while True:
             try:
                 response = get_api_answer(current_timestamp)
@@ -140,6 +131,8 @@ def main():
                 time.sleep(RETRY_TIME)
 
     else:
+        message = 'Отсутствуют обязательные переменные окружения'
+        logger.critical(message)
         return None
 
 
