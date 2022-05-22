@@ -88,16 +88,14 @@ def parse_status(homework):
     else:
         message = 'В ответе API отсутствует ключ "homework_name"'
         logging.error(message)
-        # raise AssertionError(message)
-        # В этом моменте я не понял принцип работы pytest, если поднимать
-        # ошибку с отсутсвием ключа - то pytest не проходит.
+        raise KeyError(message)
 
     if 'status' in homework:
         homework_status = homework['status']
     else:
         message = 'В ответе API отсутствует ключ "status"'
         logging.error(message)
-        raise AssertionError(message)
+        raise KeyError(message)
 
     if homework_status in HOMEWORK_STATUSES:
         verdict = HOMEWORK_STATUSES[homework_status]
