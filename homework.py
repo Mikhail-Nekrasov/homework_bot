@@ -30,11 +30,7 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}  # Данную константу
-# оставил здесь, т.к. если ее перенести в settings - возникает ошибка из-за
-# цикличности импорта: ImportError: cannot import name 'ENDPOINT' from
-# partially initialized module 'settings' (most likely due to a circular
-# import)
+HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
 
 def send_message(bot, message):
@@ -87,8 +83,22 @@ def check_response(response):
 
 def parse_status(homework):
     """Извлечение статуса и подготовка строки для отправки в чат."""
-    homework_name = homework['homework_name']
-    homework_status = homework['status']
+    if 'homework_name' in homework:
+        homework_name = homework['homework_name']
+    else:
+        message = 'В ответе API отсутствует ключ "homework_name"'
+        logging.error(message)
+        # raise AssertionError(message)
+        # В этом моменте я не понял принцип работы pytest, если поднимать
+        # ошибку с отсутсвием ключа - то pytest не проходит.
+
+    if 'status' in homework:
+        homework_status = homework['status']
+    else:
+        message = 'В ответе API отсутствует ключ "status"'
+        logging.error(message)
+        raise AssertionError(message)
+
     if homework_status in HOMEWORK_STATUSES:
         verdict = HOMEWORK_STATUSES[homework_status]
         return f'Изменился статус проверки работы "{homework_name}". {verdict}'
